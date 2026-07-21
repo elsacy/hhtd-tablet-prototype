@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI資料中心 展區平板互動 Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html,body{ margin:0; padding:0; background:#e7e9eb; font-family:"Microsoft JhengHei","PingFang TC",-apple-system,BlinkMacSystemFont,sans-serif; }
+  .harness{ max-width:1194px; margin:0 auto; padding:20px 0 40px; }
+  .harness-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px; }
+  .harness-title{ font-size:13px; color:#5a6268; }
+  .btn{ font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid #c7cbce; background:#fff; color:#4a5257; cursor:pointer; }
+  .btn.active{ background:#1c2126; border-color:#1c2126; color:#fff; }
+  .btn-group{ display:flex; gap:8px; }
+  .device{ width:1194px; max-width:100%; aspect-ratio:1194/834; margin:0 auto; background:#03050a; border-radius:28px; padding:14px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.3), 0 0 50px rgba(0,210,255,0.10); }
+  .screen{ width:100%; height:100%; border-radius:16px; padding:0; color:#c9d3d8; overflow:hidden;
+    font-family:'Rajdhani',"Microsoft JhengHei",sans-serif; position:relative;
+    background-color:#060a10;
+    background-image:
+      linear-gradient(rgba(60,220,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(60,220,255,0.05) 1px, transparent 1px),
+      radial-gradient(ellipse at 30% 0%, rgba(30,90,120,0.25) 0%, transparent 55%);
+    background-size: 28px 28px, 28px 28px, 100% 100%; }
+  .model-bg{ position:absolute; inset:0; z-index:0; }
+  .stage-glow{ position:absolute; inset:0; z-index:0; pointer-events:none;
+    background: radial-gradient(ellipse 62% 58% at 50% 46%, rgba(24,66,84,0.65) 0%, rgba(15,38,50,0.4) 38%, transparent 72%); }
+  .model-fade{ position:absolute; inset:0; z-index:1; pointer-events:none;
+    background:
+      radial-gradient(ellipse 78% 72% at 50% 46%, transparent 58%, rgba(6,10,16,0.72) 100%),
+      linear-gradient(180deg, rgba(6,10,16,0.9) 0%, rgba(6,10,16,0.05) 20%, rgba(6,10,16,0.02) 66%, rgba(6,10,16,0.88) 100%); }
+  .float-left{ position:absolute; z-index:3; top:70px; left:18px; bottom:205px; width:216px; display:flex; flex-direction:column; justify-content:space-between;
+    transition:transform .45s ease, opacity .35s ease; }
+  .float-right{ position:absolute; z-index:3; top:70px; right:18px; bottom:205px; width:256px; overflow:auto; display:flex; flex-direction:column;
+    transition:transform .45s ease, opacity .35s ease; }
+  .screen.panels-collapsed .float-left{ transform:translateX(-260px); opacity:0; pointer-events:none; }
+  .screen.panels-collapsed .float-right{ transform:translateX(260px); opacity:0; pointer-events:none; }
+  .edge-handle{ position:absolute; z-index:4; top:336px; transform:translateY(-50%); width:30px; height:58px; display:flex; align-items:center; justify-content:center;
+    background:rgba(9,16,22,0.55); backdrop-filter:blur(10px); border:1px solid rgba(70,210,255,0.22); color:#5fe3e0; font-size:18px; cursor:pointer;
+    opacity:1; transition:background-color .2s ease; }
+  .edge-handle:hover{ background:rgba(18,53,57,0.7); }
+  .edge-handle-left{ left:0; border-radius:0 10px 10px 0; }
+  .edge-handle-right{ right:0; border-radius:10px 0 0 10px; }
+  .fk-card{ flex:none; display:flex; flex-direction:column; }
+  .float-bottom{ position:absolute; z-index:3; left:18px; right:18px; bottom:16px; }
+  .glass-card{ background:rgba(9,16,22,0.44); backdrop-filter:blur(14px) saturate(140%); -webkit-backdrop-filter:blur(14px) saturate(140%);
+    border:1px solid rgba(70,210,255,0.22); border-radius:12px; padding:9px 12px; box-shadow:0 8px 22px rgba(0,0,0,0.35); }
+  .glass-title{ font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:#5fe3e0; font-weight:700;
+    margin-bottom:4px; padding-bottom:4px; border-bottom:1px solid rgba(70,210,255,0.18); }
+  .metric-row{ display:flex; justify-content:space-between; align-items:baseline; padding:4px 0; border-bottom:1px solid rgba(70,210,255,0.07); }
+  .metric-row:last-of-type{ border-bottom:none; }
+  .metric-row .lbl{ font-size:12px; color:#8fa3ab; }
+  .metric-row .val{ font-family:'Rajdhani',sans-serif; font-weight:700; font-size:15px; color:#dbe6ea; }
+  .topbar{ position:relative; z-index:3; display:flex; justify-content:space-between; align-items:center; padding:18px 24px 0; }
+  .title{ font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; letter-spacing:1.5px; color:#eaf9ff;
+    text-shadow:0 0 12px rgba(80,220,255,0.55), 0 0 2px rgba(80,220,255,0.8); }
+  .status-row{ display:flex; align-items:center; gap:16px; font-size:12.5px; color:#7c8a91; font-weight:500; }
+  .dotstat{ width:7px;height:7px;border-radius:50%; background:#3ddc84; display:inline-block; margin-right:5px; box-shadow:0 0 6px #3ddc84; }
+  .langbtn{ font-family:'Orbitron',sans-serif; font-size:11px; letter-spacing:0.5px; padding:6px 14px; border-radius:4px; border:1px solid #2a6b78; background:#0e1b20; color:#5fe3e0; cursor:pointer; clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px); }
+  .kpirow{ display:grid; grid-template-columns:1.1fr 1.1fr 1.4fr 0.8fr; gap:10px; margin-bottom:10px; align-items:stretch; height:104px; }
+  .kpi-card{ background:linear-gradient(180deg,#121a21,#0d1319); border:1px solid #1c2b33; border-radius:8px; padding:10px 12px; overflow:hidden; }
+  .kpi-label{ font-size:11.5px; color:#6f8b93; margin-bottom:3px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; }
+  .kpi-value{ font-family:'Rajdhani','Microsoft JhengHei',sans-serif; font-size:20px; font-weight:700; }
+  .kpi-chart{ height:30px; margin-top:2px; }
+  .mainrow{ display:flex; gap:10px; flex:1; min-height:0; }
+  .sidebar{ flex:0 0 15%; display:flex; flex-direction:column; gap:10px; }
+  .sidebar .kpi-card{ flex:1; display:flex; flex-direction:column; justify-content:center; }
+  .center{ flex:1.6; background:linear-gradient(180deg,#0e161c,#0a1116); border:1px solid #1c2f38; border-radius:10px; padding:14px; display:flex; flex-direction:column; min-width:0; position:relative; }
+  .stage-model{ flex:1; min-height:0; display:flex; align-items:center; justify-content:center; border-radius:8px; position:relative; overflow:hidden;
+    background:radial-gradient(ellipse at 50% 45%, #16232b 0%, #0e161c 60%, #0a1015 100%); }
+  .stage-model::after{ content:''; position:absolute; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(0deg, rgba(120,220,255,0.025) 0px, rgba(120,220,255,0.025) 1px, transparent 1px, transparent 3px); }
+  .rightpanel{ flex:0 0 23%; background:linear-gradient(180deg,#0e161c,#0a1116); border:1px solid #1c2f38; border-radius:10px; padding:14px; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+  .pathinfo{ font-size:12.5px; color:#b7c4ca; margin-top:0; line-height:1.4; min-height:18px; font-weight:500; }
+  .pathinfo b{ color:#5fe3e0; }
+  .stage-controls{ margin-top:3px; padding-top:5px; border-top:1px solid #1c2f38; }
+  @keyframes tapPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(95,227,224,0), 0 0 0 rgba(95,227,224,0); } 50%{ box-shadow:0 0 0 6px rgba(95,227,224,0.20), 0 0 14px rgba(95,227,224,0.25); } }
+  .hint{ font-size:12.5px; color:#5fe3e0; font-weight:600; margin-bottom:4px; letter-spacing:0.3px; }
+  .catrow{ display:flex; gap:8px; margin-bottom:5px; }
+  .cat-btn{ flex:1; font-family:'Rajdhani',sans-serif; font-size:14.5px; font-weight:600; letter-spacing:0.5px; padding:9px 10px; min-height:42px;
+    border:1px solid #223640; background:#101a20; color:#b7c4ca; cursor:pointer; display:flex; flex-direction:column; align-items:stretch;
+    clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);
+    transition:border-color .2s, color .2s, flex .45s ease; }
+  .cat-btn-main{ display:flex; align-items:center; justify-content:center; gap:9px; flex:none; }
+  .cat-btn .dot{ width:11px; height:11px; border-radius:50%; flex:none; box-shadow:0 0 6px currentColor; }
+  .cat-btn.active{ background:#123539; border-color:#37d0d0; color:#8ff2ef; box-shadow:0 0 16px rgba(55,208,208,0.25) inset; }
+  .cat-btn-label{ transition:font-size .2s ease; white-space:nowrap; }
+  .screen.focus-mode .cat-btn{ flex:0.55; min-width:70px; }
+  .screen.focus-mode .cat-btn.active{ flex:3; }
+  .screen.focus-mode .cat-btn:not(.active) .cat-btn-label{ font-size:11px; }
+  .cat-btn-detail{ max-height:0; opacity:0; overflow:hidden; padding-top:0; text-align:left; cursor:default;
+    transition:max-height .45s ease, opacity .35s ease, padding-top .35s ease; }
+  .screen.focus-mode .cat-btn.active .cat-btn-detail{ max-height:90px; opacity:1; padding-top:8px; }
+  .subrow{ display:flex; flex-wrap:wrap; }
+  .subchip{ font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:600; padding:8px 18px; border:1px solid #223640; border-radius:8px; background:#101a20; color:#e8edf0; cursor:pointer;
+    margin-right:8px; margin-bottom:5px; display:inline-flex; align-items:center; gap:8px; min-height:38px;
+    animation: tapPulse 2.2s ease-in-out infinite; }
+  .subchip.active{ border-color:#eee; background:#1b2831; animation:none; }
+  .subchip .dot{ width:10px;height:10px;border-radius:50%; box-shadow:0 0 6px currentColor; }
+  .iconbtn{ width:40px;height:40px; border-radius:50%; background:#101a20; border:1px solid #223640; color:#8ff2ef; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:17px; }
+  table.pt{ width:100%; border-collapse:collapse; }
+  table.pt th{ font-size:11px; color:#6f8b93; text-align:left; border-bottom:1px solid #223640; padding:10px 6px; text-transform:uppercase; letter-spacing:0.4px; }
+  table.pt td{ font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:600; color:#dbe6ea; border-bottom:1px solid #17232a; padding:13px 6px; }
+  .status-ok{ color:#3ddc84; background:#0f2418; padding:2px 8px; border-radius:3px; font-size:11px; font-weight:700; letter-spacing:0.3px; }
+  .alert-card{ border-left:3px solid #ff5f56; background:#1a1113; border-radius:4px; padding:12px 14px; margin-bottom:14px; font-size:12.5px; line-height:1.6; box-shadow:0 0 10px rgba(255,95,86,0.08); }
+  .alert-card.ok{ border-left-color:#3ddc84; background:#0f1712; box-shadow:0 0 10px rgba(61,220,132,0.08); }
+  .panel-title{ font-size:11.5px; color:#6f8b93; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; }
+  .panel-body{ flex:1; min-height:0; }
+  .panel-foot{ margin-top:10px; padding-top:10px; border-top:1px solid #1c2f38; font-size:11.5px; color:#6f8b93; }
+  .panel-foot b{ font-family:'Rajdhani',sans-serif; color:#8ff2ef; font-weight:700; }
+</style>
+</head>
+<body>
+
+<div class="harness">
+  <div class="harness-row">
+    <div class="harness-title">iPad Pro 11" 橫向 (1194×834) － 展區平板互動原型 predtotype</div>
+    <div class="btn-group">
+      <button class="btn active" id="siteBtnCdc" onclick="setSite('cdc')">CDC</button>
+      <button class="btn" id="siteBtnHdc" onclick="setSite('hdc')">HDC</button>
+    </div>
+  </div>
+
+  <div class="device">
+    <div class="screen">
+      <div class="stage-glow"></div>
+      <div class="model-bg"><svg id="isoModel" viewBox="0 0 700 340" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;"></svg></div>
+      <div class="model-fade"></div>
+
+      <div class="topbar">
+        <div class="title" id="deviceTitle">CDC 案場控制台</div>
+        <div class="status-row">
+          <span><span class="dotstat"></span><span id="connLabel">連線中</span></span>
+          <span><span id="alertsLabel">告警</span> <span id="alertCount" style="color:#ff8a65;">0</span></span>
+          <button class="langbtn" onclick="toggleLang()" id="langBtn">EN</button>
+        </div>
+      </div>
+
+      <div class="float-left">
+          <div class="glass-card fk-card">
+            <div class="glass-title" id="fixedKpiLabel">能效指標</div>
+            <div style="flex:1;display:flex;align-items:center;gap:10px;">
+              <div style="flex:1; text-align:center;">
+                <div style="width:100%;max-width:110px;height:68px;position:relative;margin:0 auto;">
+                  <svg id="pueGaugeSvg" viewBox="0 0 200 130" style="width:100%;height:100%;display:block;overflow:visible;"></svg>
+                  <div style="position:absolute;left:0;right:0;bottom:0;text-align:center;">
+                    <div id="pueCenterVal" style="font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;color:#3ddc84;">1.15</div>
+                  </div>
+                </div>
+                <div class="lbl" id="kpiPueLabel" style="font-size:12px;margin-top:2px;">PUE（&lt;1.2）</div>
+              </div>
+              <div style="flex:1; text-align:center;">
+                <div style="width:100%;max-width:110px;height:68px;position:relative;margin:0 auto;">
+                  <svg id="wueGaugeSvg" viewBox="0 0 200 130" style="width:100%;height:100%;display:block;overflow:visible;"></svg>
+                  <div style="position:absolute;left:0;right:0;bottom:0;text-align:center;">
+                    <div id="wueCenterVal" style="font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;color:#3ddc84;">0.00</div>
+                  </div>
+                </div>
+                <div class="lbl" id="kpiWueLabel" style="font-size:12px;margin-top:2px;">WUE（=0）</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card fk-card">
+            <div class="glass-title" id="cardPowerTitle">電力與能耗</div>
+            <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:8px;">
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span class="lbl" id="kpiPowerLoadLabel">電力負載</span><span class="val" id="powerLoadText" style="font-size:14px;">0.60 / 1.20 MW</span></div>
+                <div style="height:8px;background:#161d23;border-radius:4px;overflow:hidden;"><div id="powerLoadFill" style="height:100%;width:50%;background:#5fa8e0;border-radius:4px;"></div></div>
+              </div>
+              <div class="metric-row"><span class="lbl" id="kpiTotalEnergyLabel">當日總能耗</span><span class="val" id="totalEnergyVal">14.8 <span style="font-size:10px;color:#8fa3ab;">MWh</span></span></div>
+              <div class="metric-row"><span class="lbl" id="kpiItEnergyLabel">當日IT總耗能</span><span class="val" id="itEnergyVal">13.2 <span style="font-size:10px;color:#8fa3ab;">MWh</span></span></div>
+            </div>
+          </div>
+
+          <div class="glass-card fk-card">
+            <div class="glass-title" id="cardCoolingTitle">製冷</div>
+            <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span class="lbl" id="kpiCoolingLoadLabel">製冷負載</span><span class="val" id="coolingLoadText" style="font-size:14px;">0.09 / 1.44 MW</span></div>
+                <div style="height:8px;background:#161d23;border-radius:4px;overflow:hidden;"><div id="coolingLoadFill" style="height:100%;width:6%;background:#3ea6e0;border-radius:4px;"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card fk-card">
+            <div class="glass-title" id="cardCarbonTitle">碳排</div>
+            <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
+              <div class="metric-row" style="border:none;"><span class="lbl" id="kpiCarbonLabel">即時碳排</span><span class="val" id="carbonVal" style="color:#f0c368;font-size:17px;">0.14 <span style="font-size:11px;color:#8fa3ab;">MgCO2/h</span></span></div>
+            </div>
+          </div>
+
+          <div class="glass-card fk-card">
+            <div class="glass-title" id="kpiAlertsLabel">運行告警</div>
+            <div style="flex:1;display:flex;align-items:center;">
+              <div id="alertList" style="font-size:12.5px;color:#8fa3ab;width:100%;">目前無告警</div>
+            </div>
+          </div>
+      </div>
+
+      <div class="float-right glass-card">
+        <div id="rightPanel" style="display:flex;flex-direction:column;flex:1;min-height:0;"></div>
+      </div>
+
+      <div class="edge-handle edge-handle-left" id="handleLeft" onclick="togglePanels()" title="收合／展開">&#8249;</div>
+      <div class="edge-handle edge-handle-right" id="handleRight" onclick="togglePanels()" title="收合／展開">&#8250;</div>
+
+      <div class="float-bottom glass-card" style="padding:8px 14px;">
+        <div class="pathinfo" id="pathInfo" style="margin-top:0;">點下方任一按鈕，此處會顯示本次點亮的完整LED路徑</div>
+        <div class="stage-controls">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;">
+            <div class="hint" id="hintButtons" style="margin-bottom:0;">↓ 點選按鈕（前方色點＝模型將亮起的顏色）</div>
+            <span class="iconbtn" onclick="resetAll();exitFocusMode();" title="reset" id="resetBtn" style="width:32px;height:32px;font-size:15px;flex:none;">&#8635;</span>
+          </div>
+          <div class="catrow">
+            <div class="cat-btn active" data-tab="power" onclick="showTab('power')" id="tabPower" role="button" tabindex="0">
+              <span class="cat-btn-main"><span class="dot" style="background:#e0a83d;"></span><span class="cat-btn-label">電力</span></span>
+              <div class="cat-btn-detail" id="tabPowerDetail" onclick="event.stopPropagation()"></div>
+            </div>
+            <div class="cat-btn" data-tab="cooling" onclick="showTab('cooling')" id="tabCooling" role="button" tabindex="0">
+              <span class="cat-btn-main"><span class="dot" style="background:#3ea6e0;"></span><span class="cat-btn-label">冷卻</span></span>
+              <div class="cat-btn-detail" id="tabCoolingDetail" onclick="event.stopPropagation()"></div>
+            </div>
+            <div class="cat-btn" data-tab="redundancy" onclick="showTab('redundancy')" id="tabRedundancy" role="button" tabindex="0">
+              <span class="cat-btn-main"><span class="dot" style="background:#ff5f56;"></span><span class="cat-btn-label">備援</span></span>
+              <div class="cat-btn-detail" id="tabRedundancyDetail" onclick="event.stopPropagation()"></div>
+            </div>
+            <div class="cat-btn" data-tab="workload" onclick="showTab('workload')" id="tabWorkload" role="button" tabindex="0">
+              <span class="cat-btn-main"><span class="dot" style="background:#3ddc84;"></span><span class="cat-btn-label">負載</span></span>
+              <div class="cat-btn-detail" id="tabWorkloadDetail" onclick="event.stopPropagation()"></div>
+            </div>
+          </div>
+          <div class="subrow" id="subchips"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const I18N = {
+  zh:{ title_cdc:'CDC 案場控制台', title_hdc:'HDC 案場控制台', connected:'連線中', alerts:'告警',
+    legPower:'電力（琥珀）', legCooling:'冷卻（藍）', legRedundancy:'備援／故障（紅）', legWorkload:'負載（綠）', legIdle:'待機（暗）',
+    fixedKpi:'能效指標', cardPower:'電力與能耗', cardCooling:'製冷', cardCarbon:'碳排', kpiPue:'PUE（<1.2）', kpiWue:'WUE（=0）', kpiCarbon:'即時碳排', kpiPowerLoad:'電力負載', kpiCoolingLoad:'製冷負載',
+    kpiTotalEnergy:'當日總能耗', kpiItEnergy:'當日IT總耗能', kpiAlerts:'運行告警', noAlerts:'目前無告警', alertMajor:'Major',
+    tabPower:'電力', tabCooling:'冷卻', tabRedundancy:'備援', tabWorkload:'負載',
+    hintButtons:'↓ 點選按鈕（前方色點＝模型將亮起的顏色）', hintPath:'點下方任一按鈕，此處會顯示本次點亮的完整LED路徑', litPath:'已點亮路徑：',
+    panelPower:'目前電力來源占比', panelCooling:'CRAH／CDU 狀態', panelRedundancy:'即時告警記錄', panelWorkload:'機房即時功率(kW)',
+    thBranch:'分支', thPower:'功率', thLoad:'負載率', thDevice:'設備', thStatus:'狀態', thTemp:'供液溫度', statusOk:'正常',
+    alert1t:'偵測到主電力中斷', alert1s:'發生：剛剛 ・ 持續：3秒', alert1st:'狀態：自動切換中',
+    alert2t:'切換完成，服務不中斷', alert2s:'備援來源已接手', alert2st:'狀態：已關閉',
+    langBtn:'EN',
+    footPower:'目前總負載：', footCooling:'平均供液溫度：', footRedundancy:'備援容量剩餘：', footWorkload:'尖峰功率：' },
+  en:{ title_cdc:'CDC Site Console', title_hdc:'HDC Site Console', connected:'Online', alerts:'Alerts',
+    legPower:'Power (amber)', legCooling:'Cooling (blue)', legRedundancy:'Redundancy/Fault (red)', legWorkload:'Workload (green)', legIdle:'Idle (dim)',
+    fixedKpi:'Efficiency', cardPower:'Power & Energy', cardCooling:'Cooling', cardCarbon:'Carbon', kpiPue:'PUE (<1.2)', kpiWue:'WUE (=0)', kpiCarbon:'Real-time CO2', kpiPowerLoad:'Power load', kpiCoolingLoad:'Cooling load',
+    kpiTotalEnergy:'Energy today', kpiItEnergy:'IT energy today', kpiAlerts:'Operating alerts', noAlerts:'No active alerts', alertMajor:'Major',
+    tabPower:'Power', tabCooling:'Cooling', tabRedundancy:'Redundancy', tabWorkload:'Workload',
+    hintButtons:'↓ Tap a button (dot color = LED color that lights up)', hintPath:'Tap a button below — the lit path will show here', litPath:'Lit path: ',
+    panelPower:'Current power source mix', panelCooling:'CRAH / CDU status', panelRedundancy:'Live alert log', panelWorkload:'Real-time IT power (kW)',
+    thBranch:'Branch', thPower:'Power', thLoad:'Load %', thDevice:'Device', thStatus:'Status', thTemp:'Supply temp', statusOk:'Normal',
+    alert1t:'Main power interruption detected', alert1s:'Just now ・ 3s elapsed', alert1st:'Status: auto failover in progress',
+    alert2t:'Failover complete, no interruption', alert2s:'Backup source has taken over', alert2st:'Status: resolved',
+    langBtn:'中',
+    footPower:'Current total load: ', footCooling:'Avg supply temp: ', footRedundancy:'Backup capacity remaining: ', footWorkload:'Peak power: ' }
+};
+let LANG='zh';
+function t(key){ return I18N[LANG][key]; }
+
+const W=100,H=44;
+const NODES=[
+{id:'wind',cx:120,cy:60,h:20,zh:'風力發電',en:'Wind farm'},
+{id:'solar',cx:120,cy:150,h:16,zh:'太陽能',en:'Solar farm'},
+{id:'seaIntake',cx:120,cy:240,h:14,zh:'海水引水',en:'Seawater intake'},
+{id:'seaCooling',cx:260,cy:300,h:20,zh:'海水冷卻',en:'Seawater cooling'},
+{id:'bess',cx:420,cy:340,h:20,zh:'BESS儲能',en:'Battery (BESS)'},
+{id:'sofc',cx:560,cy:340,h:20,zh:'SOFC燃料電池',en:'Fuel cell (SOFC)'},
+{id:'substation',cx:400,cy:150,h:22,zh:'GIS變電站',en:'GIS substation'},
+{id:'hdc',cx:600,cy:60,h:34,zh:'HDC伺服器',en:'HDC server block'},
+{id:'cdc',cx:600,cy:210,h:30,zh:'CDC貨櫃',en:'CDC container pod'},
+{id:'dryCooler',cx:740,cy:150,h:18,zh:'乾冷卻器',en:'Dry cooler'}
+];
+const EDGES={
+e1:['wind','substation'],e2:['solar','substation'],e3:['bess','substation'],e4:['sofc','substation'],
+e5:['substation','hdc'],e6:['substation','cdc'],
+e7:['seaIntake','seaCooling'],e8:['seaCooling','hdc'],e9:['seaCooling','cdc'],
+e10:['hdc','dryCooler'],e11:['cdc','dryCooler'],
+e12:['sofc','hdc'],e13:['bess','cdc']
+};
+const halfW=56, halfH=26;
+function isoCenter(n){ return { x:n.cx, y:n.cy }; }
+function isoAnchor(n){ const c=isoCenter(n); return { x:c.x, y:c.y-n.h }; }
+function shade(hex,f){
+  hex=hex.replace('#','');
+  const r=Math.min(255,Math.round(parseInt(hex.substr(0,2),16)*f));
+  const g=Math.min(255,Math.round(parseInt(hex.substr(2,2),16)*f));
+  const b=Math.min(255,Math.round(parseInt(hex.substr(4,2),16)*f));
+  return 'rgb('+r+','+g+','+b+')';
+}
+const nodeMap={}; NODES.forEach(n=>nodeMap[n.id]=n);
+const svgns='http://www.w3.org/2000/svg';
+const svg=document.getElementById('isoModel');
+
+function buildModel(){
+  svg.innerHTML='';
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  function ext(x,y){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+  Object.keys(EDGES).forEach(id=>{
+    const [a,b]=EDGES[id];
+    const p1=isoAnchor(nodeMap[a]), p2=isoAnchor(nodeMap[b]);
+    ext(p1.x,p1.y); ext(p2.x,p2.y);
+    const line=document.createElementNS(svgns,'line');
+    line.setAttribute('id','edge_'+id); line.setAttribute('data-base','1');
+    line.setAttribute('x1',p1.x); line.setAttribute('y1',p1.y);
+    line.setAttribute('x2',p2.x); line.setAttribute('y2',p2.y);
+    line.setAttribute('stroke','#4a5a63'); line.setAttribute('stroke-width','2'); line.setAttribute('opacity','0.55');
+    svg.appendChild(line);
+  });
+  NODES.forEach(n=>{
+    const c=isoCenter(n);
+    const top=[c.x,c.y-halfH], right=[c.x+halfW,c.y], bot=[c.x,c.y+halfH], left=[c.x-halfW,c.y];
+    ext(left[0],left[1]-n.h); ext(right[0],right[1]-n.h); ext(top[0],top[1]-n.h); ext(bot[0],bot[1]);
+    ext(c.x,bot[1]+16);
+    const g=document.createElementNS(svgns,'g'); g.setAttribute('data-id',n.id);
+    const leftFace=document.createElementNS(svgns,'polygon');
+    leftFace.setAttribute('points', `${left[0]},${left[1]} ${bot[0]},${bot[1]} ${bot[0]},${bot[1]-n.h} ${left[0]},${left[1]-n.h}`);
+    leftFace.setAttribute('class','faceLeft'); leftFace.setAttribute('data-id',n.id);
+    leftFace.setAttribute('fill','#0c1013'); leftFace.setAttribute('stroke','#1c2126'); leftFace.setAttribute('stroke-width','0.5');
+    g.appendChild(leftFace);
+    const rightFace=document.createElementNS(svgns,'polygon');
+    rightFace.setAttribute('points', `${bot[0]},${bot[1]} ${right[0]},${right[1]} ${right[0]},${right[1]-n.h} ${bot[0]},${bot[1]-n.h}`);
+    rightFace.setAttribute('class','faceRight'); rightFace.setAttribute('data-id',n.id);
+    rightFace.setAttribute('fill','#0e1216'); rightFace.setAttribute('stroke','#1c2126'); rightFace.setAttribute('stroke-width','0.5');
+    g.appendChild(rightFace);
+    const topFace=document.createElementNS(svgns,'polygon');
+    topFace.setAttribute('points', `${top[0]},${top[1]-n.h} ${right[0]},${right[1]-n.h} ${bot[0]},${bot[1]-n.h} ${left[0]},${left[1]-n.h}`);
+    topFace.setAttribute('class','faceTop'); topFace.setAttribute('data-id',n.id);
+    topFace.setAttribute('fill','#12171b'); topFace.setAttribute('stroke','#20262b'); topFace.setAttribute('stroke-width','0.5');
+    g.appendChild(topFace);
+    const dot=document.createElementNS(svgns,'circle');
+    dot.setAttribute('class','ledDot'); dot.setAttribute('data-id',n.id);
+    dot.setAttribute('cx',top[0]); dot.setAttribute('cy',top[1]-n.h); dot.setAttribute('r','4'); dot.setAttribute('fill','#20262b');
+    g.appendChild(dot);
+    const label=document.createElementNS(svgns,'text');
+    label.setAttribute('class','nodeLabelZh'); label.setAttribute('data-id',n.id);
+    label.setAttribute('x',c.x); label.setAttribute('y',bot[1]+14);
+    label.setAttribute('text-anchor','middle'); label.setAttribute('font-size','10.5'); label.setAttribute('fill','#8b969b');
+    label.textContent = LANG==='zh'? n.zh : n.en;
+    g.appendChild(label);
+    const home=document.createElementNS(svgns,'circle');
+    home.setAttribute('class','homeMark'); home.setAttribute('data-id',n.id);
+    home.setAttribute('cx',top[0]-14); home.setAttribute('cy',top[1]-n.h); home.setAttribute('r','2.5'); home.setAttribute('fill','none');
+    g.appendChild(home);
+    svg.appendChild(g);
+  });
+  const contentW=maxX-minX, contentH=maxY-minY;
+  const SCREEN_W=1194, SCREEN_H=834, TARGET_CONTENT_PX=600, TOP_CLEARANCE_PX=104;
+  const scaleTarget = TARGET_CONTENT_PX/contentW;
+  const vbW = SCREEN_W/scaleTarget, vbH = SCREEN_H/scaleTarget;
+  const vbX = minX-(vbW-contentW)/2;
+  const vbY = minY-(TOP_CLEARANCE_PX/scaleTarget);
+  svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
+  applyHome();
+}
+
+const S={
+cdc:{
+power_dc:{edges:['e1','e2','e3','e4','e6'],nodes:['wind','solar','bess','sofc','substation','cdc'],color:'#e0a83d',it:620,ct:23.4,pue:1.14,wue:0,src:{zh:'800V DC 直流直供',en:'800V DC direct supply'},cap:{zh:'800V DC 直流直供：綠能、儲能與燃料電池經直流微電網直供CDC貨櫃機。',en:'800V DC direct supply: renewables, storage and the fuel cell feed the CDC pod via the DC microgrid.'}},
+power_green:{edges:['e1','e2','e3','e6'],nodes:['wind','solar','bess','substation','cdc'],color:'#e0a83d',it:610,ct:23.5,pue:1.16,wue:0,src:{zh:'綠能微電網互補',en:'Green microgrid'},cap:{zh:'綠能微電網互補：太陽能與風力經儲能調節供電CDC。',en:'Green microgrid mode: solar and wind, buffered by storage, power the CDC pod.'}},
+cooling_air:{edges:['e7','e9','e11'],nodes:['seaIntake','seaCooling','cdc','dryCooler'],color:'#3ea6e0',it:615,ct:22.8,pue:1.15,wue:0,cap:{zh:'氣冷零水耗：海水冷卻驅動吸收式冰機，經乾冷器退熱，WUE=0。',en:'Zero-water air cooling: seawater cooling drives an absorption chiller, rejecting heat via the dry cooler. WUE = 0.'}},
+cooling_liquid:{edges:['e7','e9','e11'],nodes:['seaIntake','seaCooling','cdc','dryCooler'],color:'#3ea6e0',it:615,ct:21.2,pue:1.12,wue:0,cap:{zh:'液冷直接晶片冷卻：海水冷卻模組直接對CDC貨櫃晶片散熱。',en:'Direct-to-chip liquid cooling: the seawater cooling module cools CDC pod chips directly.'}},
+redundancy_power:{edges:['e13'],faultEdge:'e6',nodes:['bess','cdc'],color:'#ff5f56',it:615,ct:23.6,pue:1.19,wue:0,alert:1,soc:63,src:{zh:'BESS 備援供電',en:'BESS backup power'},cap:{zh:'主電力中斷：BESS毫秒級無縫介接，確保CDC運算不中斷。',en:'Main power interruption: BESS bridges the gap in milliseconds, keeping the CDC pod running.'}},
+redundancy_cooling:{edges:['e9'],faultEdge:'e9',nodes:['seaCooling','cdc'],color:'#ff5f56',it:615,ct:24.1,pue:1.18,wue:0,alert:1,cap:{zh:'冷卻管路故障：雙迴路自動切換備援，維持CDC穩定運行。',en:'Chilled-water pipe fault: dual-loop auto-failover keeps the CDC pod stable.'}},
+workload_50:{edges:['e1','e2','e6','e7','e9'],nodes:['cdc'],color:'#3ddc84',it:480,ct:22.0,pue:1.14,wue:0,cap:{zh:'50%中低載：能效最佳化狀態。',en:'50% moderate load: efficiency-optimized state.'}},
+workload_100:{edges:['e1','e2','e3','e4','e6','e7','e9','e11'],nodes:['cdc'],color:'#3ddc84',it:960,ct:24.8,pue:1.17,wue:0,cap:{zh:'100%滿載爆發：全負荷動態演示。',en:'100% full-load burst: all systems engaged simultaneously.'}}
+},
+hdc:{
+power_ac:{edges:['e5'],nodes:['substation','hdc'],color:'#8b969b',it:980,ct:24.0,pue:1.32,wue:0.7,src:{zh:'傳統480V AC供電',en:'Legacy 480V AC'},cap:{zh:'傳統480V AC供電：市電經變電站以交流電網供應HDC（相容模式）。',en:'Legacy 480V AC supply: grid power via the substation, AC distribution (compatibility mode).'}},
+power_dc:{edges:['e1','e2','e3','e4','e5'],nodes:['wind','solar','bess','sofc','substation','hdc'],color:'#e0a83d',it:980,ct:23.6,pue:1.16,wue:0,src:{zh:'800V DC 直流直供',en:'800V DC direct supply'},cap:{zh:'800V DC 直流直供：減少多級轉換損耗，直供HDC伺服器。',en:'800V DC direct supply: fewer conversion stages, feeding HDC servers directly.'}},
+power_green:{edges:['e1','e2','e3','e5'],nodes:['wind','solar','bess','substation','hdc'],color:'#e0a83d',it:960,ct:23.7,pue:1.18,wue:0,src:{zh:'綠能微電網互補',en:'Green microgrid'},cap:{zh:'綠能微電網互補：太陽能與風力經儲能調節供電HDC。',en:'Green microgrid mode: solar and wind, buffered by storage, power HDC.'}},
+cooling_air:{edges:['e7','e8','e10'],nodes:['seaIntake','seaCooling','hdc','dryCooler'],color:'#3ea6e0',it:970,ct:23.2,pue:1.17,wue:0,cap:{zh:'氣冷零水耗：WUE = 0。',en:'Zero-water air cooling: WUE = 0.'}},
+cooling_liquid:{edges:['e7','e8','e10'],nodes:['seaIntake','seaCooling','hdc','dryCooler'],color:'#3ea6e0',it:970,ct:21.5,pue:1.13,wue:0,cap:{zh:'液冷直接晶片冷卻。',en:'Direct-to-chip liquid cooling.'}},
+redundancy_power:{edges:['e12'],faultEdge:'e5',nodes:['sofc','hdc'],color:'#ff5f56',it:970,ct:23.8,pue:1.20,wue:0,alert:1,src:{zh:'SOFC 備援供電',en:'SOFC backup power'},cap:{zh:'市電中斷：SOFC燃料電池毫秒級無縫介接，確保HDC運算不中斷。',en:'Grid outage: the SOFC fuel cell bridges seamlessly in milliseconds, keeping HDC running.'}},
+redundancy_cooling:{edges:['e8'],faultEdge:'e8',nodes:['seaCooling','hdc'],color:'#ff5f56',it:970,ct:24.3,pue:1.19,wue:0,alert:1,cap:{zh:'冷水管路故障：雙迴路自動切換備援。',en:'Chilled-water pipe fault: dual-loop auto-failover.'}},
+workload_50:{edges:['e1','e2','e5','e7','e8'],nodes:['hdc'],color:'#3ddc84',it:750,ct:22.4,pue:1.15,wue:0,cap:{zh:'50%中低載：能效最佳化狀態。',en:'50% moderate load: efficiency-optimized state.'}},
+workload_100:{edges:['e1','e2','e3','e4','e5','e7','e8','e10'],nodes:['hdc'],color:'#3ddc84',it:1500,ct:25.1,pue:1.18,wue:0,cap:{zh:'100%滿載爆發：全負荷動態演示。',en:'100% full-load burst: all systems engaged simultaneously.'}}
+}
+};
+const tabDefs={
+power:site=> site==='cdc' ? [['power_dc',{zh:'800V DC 直流直供',en:'800V DC direct supply'}],['power_green',{zh:'綠能微電網互補',en:'Green microgrid'}]]
+  : [['power_ac',{zh:'傳統480V AC供電',en:'Legacy 480V AC'}],['power_dc',{zh:'800V DC 直流直供',en:'800V DC direct supply'}],['power_green',{zh:'綠能微電網互補',en:'Green microgrid'}]],
+cooling:()=>[['cooling_air',{zh:'氣冷零水耗',en:'Zero-water air cooling'}],['cooling_liquid',{zh:'液冷直接晶片冷卻',en:'Direct-to-chip liquid cooling'}]],
+redundancy:()=>[['redundancy_power',{zh:'電力中斷 → 備援',en:'Power outage → failover'}],['redundancy_cooling',{zh:'冷卻故障 → 雙迴路備援',en:'Cooling fault → dual-loop failover'}]],
+workload:()=>[['workload_50',{zh:'50% 中低載',en:'50% moderate load'}],['workload_100',{zh:'100% 滿載爆發',en:'100% full-load burst'}]]
+};
+const idleDefault={
+cdc:{it:600,ct:23.4,pue:1.15,wue:0,soc:86,src:{zh:'800V DC 直流直供',en:'800V DC direct supply'}},
+hdc:{it:950,ct:23.6,pue:1.16,wue:0,soc:91,src:{zh:'800V DC 直流直供',en:'800V DC direct supply'}}
+};
+const POWER_CAP={
+cdc:{powerMax:1.2, coolingMax:1.44, totalEnergy:14.8, itEnergy:13.2},
+hdc:{powerMax:1.8, coolingMax:2.16, totalEnergy:23.6, itEnergy:21.1}
+};
+const POWER_MIX={
+power_ac:[ {zh:'市電網',en:'Utility grid',v:100,c:'#8b969b'} ],
+power_dc:[ {zh:'太陽能',en:'Solar',v:28,c:'#f0c368'}, {zh:'風力',en:'Wind',v:24,c:'#5fa8e0'}, {zh:'儲能',en:'Storage',v:20,c:'#5fe3e0'}, {zh:'燃料電池',en:'Fuel cell',v:28,c:'#e0a83d'} ],
+power_green:[ {zh:'太陽能',en:'Solar',v:42,c:'#f0c368'}, {zh:'風力',en:'Wind',v:33,c:'#5fa8e0'}, {zh:'儲能',en:'Storage',v:25,c:'#5fe3e0'} ]
+};
+let currentSite='cdc', currentTab='power', currentScenarioKey=null, lastAlertKey=null;
+let rightChart=null;
+
+const PG={cx:100,cy:95,r:72,start:135,sweep:270};
+function pgPolar(angleDeg,radius){
+  const rad=angleDeg*Math.PI/180;
+  return { x: PG.cx+radius*Math.cos(rad), y: PG.cy+radius*Math.sin(rad) };
+}
+function pgLerpColor(f){
+  const stops=[[0,45,201,110],[0.30,100,214,90],[0.45,240,195,60],[0.65,240,150,50],[1,235,60,60]];
+  for(let i=0;i<stops.length-1;i++){
+    const a=stops[i], b=stops[i+1];
+    if(f>=a[0] && f<=b[0]){
+      const tt=(f-a[0])/(b[0]-a[0]);
+      const r=Math.round(a[1]+(b[1]-a[1])*tt);
+      const g=Math.round(a[2]+(b[2]-a[2])*tt);
+      const bl=Math.round(a[3]+(b[3]-a[3])*tt);
+      return `rgb(${r},${g},${bl})`;
+    }
+  }
+  return 'rgb(235,60,60)';
+}
+function buildGauge(svgId, min, max, step){
+  const gsvg=document.getElementById(svgId);
+  gsvg.innerHTML='';
+  const segs=60;
+  for(let i=0;i<segs;i++){
+    const a0=PG.start+(i/segs)*PG.sweep;
+    const a1=PG.start+((i+1)/segs)*PG.sweep+0.6;
+    const p0=pgPolar(a0,PG.r), p1=pgPolar(a1,PG.r);
+    const path=document.createElementNS(svgns,'path');
+    path.setAttribute('d', `M ${p0.x} ${p0.y} A ${PG.r} ${PG.r} 0 0 1 ${p1.x} ${p1.y}`);
+    path.setAttribute('stroke', pgLerpColor((i+0.5)/segs));
+    path.setAttribute('stroke-width','13'); path.setAttribute('fill','none'); path.setAttribute('stroke-linecap','butt');
+    gsvg.appendChild(path);
+  }
+  for(let v=min; v<=max+0.0001; v+=step){
+    const ang=PG.start+((v-min)/(max-min))*PG.sweep;
+    const p1=pgPolar(ang,PG.r-9), p2=pgPolar(ang,PG.r+2);
+    const tick=document.createElementNS(svgns,'line');
+    tick.setAttribute('x1',p1.x); tick.setAttribute('y1',p1.y); tick.setAttribute('x2',p2.x); tick.setAttribute('y2',p2.y);
+    tick.setAttribute('stroke','#4a5a63'); tick.setAttribute('stroke-width','1.5');
+    gsvg.appendChild(tick);
+    const lp=pgPolar(ang,PG.r+17);
+    const txt=document.createElementNS(svgns,'text');
+    txt.setAttribute('x',lp.x); txt.setAttribute('y',lp.y+3);
+    txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','9'); txt.setAttribute('fill','#6f8b93'); txt.setAttribute('font-family','Rajdhani');
+    txt.textContent = v.toFixed(1);
+    gsvg.appendChild(txt);
+  }
+  const needle=document.createElementNS(svgns,'g');
+  needle.setAttribute('id',svgId+'_needle');
+  needle.style.transformOrigin = `${PG.cx}px ${PG.cy}px`;
+  needle.style.transition = 'transform .6s cubic-bezier(.34,1.56,.64,1)';
+  const tri=document.createElementNS(svgns,'polygon');
+  tri.setAttribute('points', `${PG.cx+58},${PG.cy} ${PG.cx-6},${PG.cy-4} ${PG.cx-6},${PG.cy+4}`);
+  tri.setAttribute('fill','#5fe3e0');
+  needle.appendChild(tri);
+  gsvg.appendChild(needle);
+  const hub=document.createElementNS(svgns,'circle');
+  hub.setAttribute('cx',PG.cx); hub.setAttribute('cy',PG.cy); hub.setAttribute('r','8');
+  hub.setAttribute('fill','#0e161c'); hub.setAttribute('stroke','#5fe3e0'); hub.setAttribute('stroke-width','2');
+  gsvg.appendChild(hub);
+}
+function setGaugeNeedle(svgId, min, max, value){
+  const v=Math.max(min,Math.min(max,value));
+  const ang=PG.start+((v-min)/(max-min))*PG.sweep;
+  const needle=document.getElementById(svgId+'_needle');
+  if(needle) needle.style.transform = `rotate(${ang}deg)`;
+}
+function updatePueGauge(pueVal){
+  const color = pueVal<=1.2?'#3ddc84':(pueVal<=1.4?'#f0c368':'#ff8a65');
+  document.getElementById('pueCenterVal').textContent=pueVal.toFixed(2);
+  document.getElementById('pueCenterVal').style.color=color;
+  setGaugeNeedle('pueGaugeSvg',1.0,2.0,pueVal);
+}
+function updateWueGauge(wueVal){
+  const color = wueVal<=0.05?'#3ddc84':(wueVal<=0.3?'#f0c368':'#ff8a65');
+  document.getElementById('wueCenterVal').textContent=wueVal.toFixed(2);
+  document.getElementById('wueCenterVal').style.color=color;
+  setGaugeNeedle('wueGaugeSvg',0,1.0,wueVal);
+}
+function computeAndSetFixedKPIs(it, pue, wue){
+  updatePueGauge(pue);
+  updateWueGauge(wue);
+  const carbon = it*0.3/1000;
+  document.getElementById('carbonVal').innerHTML = carbon.toFixed(2)+' <span style="font-size:10px;color:#8fa3ab;">MgCO2/h</span>';
+  const cap=POWER_CAP[currentSite];
+  const powerMW = it/1000;
+  const powerPct = Math.min(100, powerMW/cap.powerMax*100);
+  document.getElementById('powerLoadText').textContent = powerMW.toFixed(2)+' / '+cap.powerMax.toFixed(2)+' MW';
+  document.getElementById('powerLoadFill').style.width = powerPct+'%';
+  const coolingMW = Math.max(0, it*(pue-1))/1000;
+  const coolingPct = Math.min(100, coolingMW/cap.coolingMax*100);
+  document.getElementById('coolingLoadText').textContent = coolingMW.toFixed(2)+' / '+cap.coolingMax.toFixed(2)+' MW';
+  document.getElementById('coolingLoadFill').style.width = coolingPct+'%';
+}
+function updateStaticEnergy(){
+  const cap=POWER_CAP[currentSite];
+  document.getElementById('totalEnergyVal').innerHTML = cap.totalEnergy+' <span style="font-size:10px;color:#8fa3ab;">MWh</span>';
+  document.getElementById('itEnergyVal').innerHTML = cap.itEnergy+' <span style="font-size:10px;color:#8fa3ab;">MWh</span>';
+}
+function renderAlerts(){
+  const el=document.getElementById('alertList');
+  if(!lastAlertKey){ el.style.color='#8fa3ab'; el.innerHTML=t('noAlerts'); return; }
+  const s=S[currentSite][lastAlertKey];
+  el.style.color='';
+  el.innerHTML = `<div style="display:flex;gap:8px;align-items:baseline;">
+    <span style="background:#3a1414;color:#ff8a80;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;flex:none;">${t('alertMajor')}</span>
+    <span style="flex:1;font-size:11.5px;color:#dbe6ea;line-height:1.4;">${s.cap[LANG]}</span>
+  </div>`;
+}
+
+function rightPanelHTML(tab){
+  if(rightChart){ rightChart.destroy(); rightChart=null; }
+  if(tab==='power'){
+    const mixKey = (currentScenarioKey && currentScenarioKey.indexOf('power_')===0) ? currentScenarioKey : 'power_dc';
+    const mix = POWER_MIX[mixKey];
+    const bars = mix.map(m=>`
+      <div style="margin-bottom:18px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:7px;">
+          <span>${LANG==='zh'?m.zh:m.en}</span><span style="font-family:'Rajdhani',sans-serif;font-weight:700;color:${m.c};">${m.v}%</span>
+        </div>
+        <div style="height:8px;background:#161d23;border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${m.v}%;background:${m.c};border-radius:4px;"></div>
+        </div>
+      </div>`).join('');
+    return `<div class="panel-title">${t('panelPower')}</div><div class="panel-body">${bars}</div>
+      <div class="panel-foot">${t('footPower')}<b>${idleDefault[currentSite].it} kW</b></div>`;
+  }
+  if(tab==='cooling'){
+    return `<div class="panel-title">${t('panelCooling')}</div><div class="panel-body"><table class="pt"><tr><th>${t('thDevice')}</th><th>${t('thStatus')}</th><th>${t('thTemp')}</th></tr>
+      <tr><td>CRAH01</td><td><span class="status-ok">${t('statusOk')}</span></td><td>20°C</td></tr>
+      <tr><td>CDU02</td><td><span class="status-ok">${t('statusOk')}</span></td><td>20°C</td></tr>
+      <tr><td>CDU03</td><td><span class="status-ok">${t('statusOk')}</span></td><td>20°C</td></tr>
+      <tr><td>CDU04</td><td><span class="status-ok">${t('statusOk')}</span></td><td>20°C</td></tr></table></div>
+      <div class="panel-foot">${t('footCooling')}<b>20.0°C</b></div>`;
+  }
+  if(tab==='redundancy'){
+    return `<div class="panel-title">${t('panelRedundancy')}</div><div class="panel-body">
+      <div class="alert-card"><b>${t('alert1t')}</b><br>${t('alert1s')}<br>${t('alert1st')}</div>
+      <div class="alert-card ok"><b>${t('alert2t')}</b><br>${t('alert2s')}<br>${t('alert2st')}</div></div>
+      <div class="panel-foot">${t('footRedundancy')}<b id="rcCapVal">92%</b></div>`;
+  }
+  return `<div class="panel-title">${t('panelWorkload')}</div><div class="panel-body" style="position:relative;"><canvas id="rc"></canvas></div>
+    <div class="panel-foot">${t('footWorkload')}<b>${idleDefault[currentSite].it*1.6|0} kW</b></div>`;
+}
+function setRightPanel(tab){
+  document.getElementById('rightPanel').innerHTML = rightPanelHTML(tab);
+  renderRightChart(tab);
+}
+function renderRightChart(tab){
+  const el=document.getElementById('rc'); if(!el) return;
+  const ctx=el.getContext('2d');
+  if(tab==='workload'){
+    rightChart=new Chart(ctx,{type:'line',data:{labels:['-6','-5','-4','-3','-2','-1','0'],datasets:[{data:[40,55,50,70,65,85,95],borderColor:'#3ddc84',backgroundColor:'rgba(61,220,132,0.15)',fill:true,tension:0.3,pointRadius:0,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:300},
+        scales:{x:{ticks:{color:'#7c8a91',font:{size:10}},grid:{color:'#1c2126'}},y:{ticks:{color:'#7c8a91',font:{size:10}},grid:{color:'#1c2126'}}},
+        plugins:{legend:{display:false}}}});
+  }
+}
+
+function applyHome(){
+  document.querySelectorAll('.homeMark').forEach(c=>c.setAttribute('fill','none'));
+  const c=document.querySelector(`.homeMark[data-id="${currentSite}"]`);
+  if(c) c.setAttribute('fill','#5fe3e0');
+}
+function resetAll(){
+  currentScenarioKey=null;
+  lastAlertKey=null;
+  document.querySelectorAll('line[data-base]').forEach(e=>{ e.setAttribute('stroke','#4a5a63'); e.setAttribute('stroke-width','2'); e.setAttribute('opacity','0.55'); e.removeAttribute('stroke-dasharray'); });
+  document.querySelectorAll('.faceTop').forEach(f=>f.setAttribute('fill','#12171b'));
+  document.querySelectorAll('.faceRight').forEach(f=>f.setAttribute('fill','#0e1216'));
+  document.querySelectorAll('.faceLeft').forEach(f=>f.setAttribute('fill','#0c1013'));
+  document.querySelectorAll('.ledDot').forEach(d=>d.setAttribute('fill','#20262b'));
+  document.querySelectorAll('.nodeLabelZh').forEach(l=>l.setAttribute('fill','#8b969b'));
+  applyHome();
+  document.getElementById('pathInfo').textContent=t('hintPath');
+  document.getElementById('alertCount').textContent='0';
+  const idle=idleDefault[currentSite];
+  computeAndSetFixedKPIs(idle.it, idle.pue, idle.wue);
+  renderAlerts();
+  setRightPanel(currentTab);
+  document.querySelectorAll('.subchip').forEach(b=>b.classList.remove('active'));
+}
+function applyScenario(key){
+  resetAll();
+  currentScenarioKey=key;
+  const s=S[currentSite][key];
+  s.edges.forEach(id=>{
+    const el=document.getElementById('edge_'+id);
+    el.setAttribute('stroke',s.color); el.setAttribute('stroke-width','5'); el.setAttribute('opacity','1');
+    el.setAttribute('stroke-dasharray','9 5');
+  });
+  if(s.faultEdge){
+    const el=document.getElementById('edge_'+s.faultEdge);
+    el.setAttribute('stroke','#ff5f56'); el.setAttribute('stroke-dasharray','4 4'); el.setAttribute('opacity','1');
+  }
+  s.nodes.forEach(id=>{
+    document.querySelector(`.faceTop[data-id="${id}"]`).setAttribute('fill',s.color);
+    document.querySelector(`.faceRight[data-id="${id}"]`).setAttribute('fill',shade(s.color,0.7));
+    document.querySelector(`.faceLeft[data-id="${id}"]`).setAttribute('fill',shade(s.color,0.5));
+    document.querySelector(`.ledDot[data-id="${id}"]`).setAttribute('fill',s.color);
+    document.querySelector(`.nodeLabelZh[data-id="${id}"]`).setAttribute('fill','#eef2f4');
+  });
+  applyHome();
+  computeAndSetFixedKPIs(s.it, s.pue, s.wue);
+  lastAlertKey = s.alert ? key : null;
+  renderAlerts();
+  setRightPanel(currentTab);
+  const pathStr=s.nodes.map(id=> LANG==='zh'?nodeMap[id].zh:nodeMap[id].en).join(' → ');
+  document.getElementById('pathInfo').innerHTML=`<b>${t('litPath')}</b>${pathStr}<br>${s.cap[LANG]}`;
+  document.getElementById('alertCount').textContent=s.alert||0;
+  document.querySelectorAll('.subchip').forEach(b=>b.classList.toggle('active',b.dataset.key===key));
+}
+function renderSubchips(){
+  const c=document.getElementById('subchips'); c.innerHTML='';
+  tabDefs[currentTab](currentSite).forEach(([key,label])=>{
+    const b=document.createElement('button');
+    b.className='subchip'; b.dataset.key=key;
+    const color=S[currentSite][key].color;
+    b.innerHTML=`<span class="dot" style="background:${color};"></span>${label[LANG]}`;
+    b.onclick=()=>applyScenario(key);
+    c.appendChild(b);
+  });
+}
+function showTab(name){
+  currentTab=name;
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+  renderSubchips();
+  setRightPanel(name);
+  document.getElementById('hintButtons').textContent = t('hintButtons');
+  document.getElementById('pathInfo').textContent=t('hintPath');
+  const cap=name.charAt(0).toUpperCase()+name.slice(1);
+  const detail=document.getElementById('tab'+cap+'Detail');
+  detail.appendChild(document.getElementById('subchips'));
+  document.querySelector('.screen').classList.add('focus-mode');
+}
+function updateEdgeHandles(){
+  const collapsed = document.querySelector('.screen').classList.contains('panels-collapsed');
+  document.getElementById('handleLeft').innerHTML = collapsed ? '&#8250;' : '&#8249;';
+  document.getElementById('handleRight').innerHTML = collapsed ? '&#8249;' : '&#8250;';
+}
+function togglePanels(){
+  document.querySelector('.screen').classList.toggle('panels-collapsed');
+  updateEdgeHandles();
+}
+function exitFocusMode(){
+  document.querySelector('.screen').classList.remove('focus-mode');
+  document.querySelector('.screen').classList.remove('panels-collapsed');
+  updateEdgeHandles();
+}
+function setSite(site){
+  currentSite=site;
+  document.getElementById('siteBtnCdc').classList.toggle('active',site==='cdc');
+  document.getElementById('siteBtnHdc').classList.toggle('active',site==='hdc');
+  document.getElementById('deviceTitle').textContent = site==='cdc'? t('title_cdc') : t('title_hdc');
+  updateStaticEnergy();
+  renderSubchips();
+  resetAll();
+  exitFocusMode();
+}
+function applyStaticText(){
+  document.getElementById('deviceTitle').textContent = currentSite==='cdc'? t('title_cdc') : t('title_hdc');
+  document.getElementById('connLabel').textContent=t('connected');
+  document.getElementById('alertsLabel').textContent=t('alerts');
+  document.getElementById('langBtn').textContent=t('langBtn');
+  document.getElementById('fixedKpiLabel').textContent=t('fixedKpi');
+  document.getElementById('cardPowerTitle').textContent=t('cardPower');
+  document.getElementById('cardCoolingTitle').textContent=t('cardCooling');
+  document.getElementById('cardCarbonTitle').textContent=t('cardCarbon');
+  document.getElementById('kpiPueLabel').textContent=t('kpiPue');
+  document.getElementById('kpiWueLabel').textContent=t('kpiWue');
+  document.getElementById('kpiCarbonLabel').textContent=t('kpiCarbon');
+  document.getElementById('kpiPowerLoadLabel').textContent=t('kpiPowerLoad');
+  document.getElementById('kpiCoolingLoadLabel').textContent=t('kpiCoolingLoad');
+  document.getElementById('kpiTotalEnergyLabel').textContent=t('kpiTotalEnergy');
+  document.getElementById('kpiItEnergyLabel').textContent=t('kpiItEnergy');
+  document.getElementById('kpiAlertsLabel').textContent=t('kpiAlerts');
+  renderAlerts();
+  document.querySelector('#tabPower .cat-btn-label').textContent=t('tabPower');
+  document.querySelector('#tabCooling .cat-btn-label').textContent=t('tabCooling');
+  document.querySelector('#tabRedundancy .cat-btn-label').textContent=t('tabRedundancy');
+  document.querySelector('#tabWorkload .cat-btn-label').textContent=t('tabWorkload');
+  document.getElementById('hintButtons').textContent = t('hintButtons');
+  document.querySelectorAll('.nodeLabelZh').forEach(l=>{ const id=l.getAttribute('data-id'); l.textContent = LANG==='zh'? nodeMap[id].zh : nodeMap[id].en; });
+}
+function toggleLang(){
+  LANG = LANG==='zh' ? 'en' : 'zh';
+  applyStaticText();
+  renderSubchips();
+  setRightPanel(currentTab);
+  document.getElementById('pathInfo').textContent=t('hintPath');
+}
+
+buildModel();
+buildGauge('pueGaugeSvg',1.0,2.0,0.2);
+buildGauge('wueGaugeSvg',0,1.0,0.2);
+updateStaticEnergy();
+renderSubchips();
+resetAll();
+updateEdgeHandles();
+</script>
+</body>
+</html>

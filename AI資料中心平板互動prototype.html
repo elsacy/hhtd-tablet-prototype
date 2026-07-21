@@ -103,6 +103,23 @@
   .subchip.active{ border-color:#eee; background:#1b2831; animation:none; }
   .subchip .dot{ width:10px;height:10px;border-radius:50%; box-shadow:0 0 6px currentColor; }
   .iconbtn{ width:40px;height:40px; border-radius:50%; background:#101a20; border:1px solid #223640; color:#8ff2ef; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:17px; }
+  .fault-modal-overlay{ position:absolute; inset:0; z-index:20; background:rgba(3,5,8,0.72); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none; transition:opacity .2s ease; }
+  .fault-modal-overlay.show{ opacity:1; pointer-events:auto; }
+  .fault-modal{ width:380px; max-width:86%; background:linear-gradient(180deg,#161113,#0f0a0b); border:1px solid rgba(255,95,86,0.4); border-radius:14px;
+    padding:26px 26px 22px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.55), 0 0 40px rgba(255,95,86,0.12);
+    transform:translateY(10px) scale(.97); transition:transform .25s cubic-bezier(.34,1.56,.64,1); }
+  .fault-modal-overlay.show .fault-modal{ transform:translateY(0) scale(1); }
+  .fault-modal-icon{ font-size:30px; color:#ff8a65; margin-bottom:8px; text-shadow:0 0 16px rgba(255,95,86,0.5); }
+  .fault-modal-title{ font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700; color:#f2d9d6; letter-spacing:0.5px; margin-bottom:10px; }
+  .fault-modal-desc{ font-size:13px; color:#b7c4ca; line-height:1.6; margin-bottom:22px; }
+  .fault-modal-actions{ display:flex; gap:10px; }
+  .fault-modal-btn{ flex:1; font-family:'Rajdhani',sans-serif; font-size:14.5px; font-weight:700; padding:11px 10px; border-radius:8px; cursor:pointer; letter-spacing:0.4px; }
+  .fault-modal-btn.cancel{ background:#141a1e; border:1px solid #2a3338; color:#b7c4ca; }
+  .fault-modal-btn.cancel:hover{ border-color:#3f4b52; }
+  .fault-modal-btn.confirm{ background:#3a1414; border:1px solid #ff5f56; color:#ff8a80; }
+  .fault-modal-btn.confirm:hover{ background:#4a1918; }
   table.pt{ width:100%; border-collapse:collapse; }
   table.pt th{ font-size:11px; color:#6f8b93; text-align:left; border-bottom:1px solid #223640; padding:10px 6px; text-transform:uppercase; letter-spacing:0.4px; }
   table.pt td{ font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:600; color:#dbe6ea; border-bottom:1px solid #17232a; padding:13px 6px; }
@@ -238,6 +255,18 @@
           <div class="subrow" id="subchips"></div>
         </div>
       </div>
+
+      <div class="fault-modal-overlay" id="faultModalOverlay" onclick="if(event.target===this)cancelFaultTrigger()">
+        <div class="fault-modal">
+          <div class="fault-modal-icon">&#9888;</div>
+          <div class="fault-modal-title" id="faultModalTitle">即將模擬故障情境</div>
+          <div class="fault-modal-desc" id="faultModalDesc"></div>
+          <div class="fault-modal-actions">
+            <button class="fault-modal-btn cancel" onclick="cancelFaultTrigger()" id="faultModalCancel">取消</button>
+            <button class="fault-modal-btn confirm" onclick="confirmFaultTrigger()" id="faultModalConfirm">觸發故障</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -255,7 +284,8 @@ const I18N = {
     alert1t:'偵測到主電力中斷', alert1s:'發生：剛剛 ・ 持續：3秒', alert1st:'狀態：自動切換中',
     alert2t:'切換完成，服務不中斷', alert2s:'備援來源已接手', alert2st:'狀態：已關閉',
     langBtn:'EN',
-    footPower:'目前總負載：', footCooling:'平均供液溫度：', footRedundancy:'備援容量剩餘：', footWorkload:'尖峰功率：' },
+    footPower:'目前總負載：', footCooling:'平均供液溫度：', footRedundancy:'備援容量剩餘：', footWorkload:'尖峰功率：',
+    faultModalTitle:'即將模擬故障情境', faultModalCancel:'取消', faultModalConfirm:'觸發故障' },
   en:{ title_cdc:'CDC Site Console', title_hdc:'HDC Site Console', connected:'Online', alerts:'Alerts',
     legPower:'Power (amber)', legCooling:'Cooling (blue)', legRedundancy:'Redundancy/Fault (red)', legWorkload:'Workload (green)', legIdle:'Idle (dim)',
     fixedKpi:'Efficiency', cardPower:'Power & Energy', cardCooling:'Cooling', cardCarbon:'Carbon', kpiPue:'PUE (<1.2)', kpiWue:'WUE (=0)', kpiCarbon:'Real-time CO2', kpiPowerLoad:'Power load', kpiCoolingLoad:'Cooling load',
@@ -267,7 +297,8 @@ const I18N = {
     alert1t:'Main power interruption detected', alert1s:'Just now ・ 3s elapsed', alert1st:'Status: auto failover in progress',
     alert2t:'Failover complete, no interruption', alert2s:'Backup source has taken over', alert2st:'Status: resolved',
     langBtn:'中',
-    footPower:'Current total load: ', footCooling:'Avg supply temp: ', footRedundancy:'Backup capacity remaining: ', footWorkload:'Peak power: ' }
+    footPower:'Current total load: ', footCooling:'Avg supply temp: ', footRedundancy:'Backup capacity remaining: ', footWorkload:'Peak power: ',
+    faultModalTitle:'About to simulate a fault scenario', faultModalCancel:'Cancel', faultModalConfirm:'Trigger fault' }
 };
 let LANG='zh';
 function t(key){ return I18N[LANG][key]; }
@@ -633,9 +664,30 @@ function renderSubchips(){
     b.className='subchip'; b.dataset.key=key;
     const color=S[currentSite][key].color;
     b.innerHTML=`<span class="dot" style="background:${color};"></span>${label[LANG]}`;
-    b.onclick=()=>applyScenario(key);
+    b.onclick = S[currentSite][key].alert ? ()=>requestFaultTrigger(key) : ()=>applyScenario(key);
     c.appendChild(b);
   });
+}
+let pendingFaultKey=null;
+function requestFaultTrigger(key){
+  pendingFaultKey=key;
+  document.getElementById('faultModalTitle').textContent=t('faultModalTitle');
+  document.getElementById('faultModalCancel').textContent=t('faultModalCancel');
+  document.getElementById('faultModalConfirm').textContent=t('faultModalConfirm');
+  document.getElementById('faultModalDesc').textContent = S[currentSite][key].cap[LANG];
+  document.getElementById('faultModalOverlay').classList.add('show');
+}
+function confirmFaultTrigger(){
+  const key=pendingFaultKey;
+  closeFaultModal();
+  if(key) applyScenario(key);
+}
+function cancelFaultTrigger(){
+  closeFaultModal();
+}
+function closeFaultModal(){
+  pendingFaultKey=null;
+  document.getElementById('faultModalOverlay').classList.remove('show');
 }
 function showTab(name){
   currentTab=name;
@@ -704,6 +756,7 @@ function toggleLang(){
   renderSubchips();
   setRightPanel(currentTab);
   document.getElementById('pathInfo').textContent=t('hintPath');
+  if(pendingFaultKey) requestFaultTrigger(pendingFaultKey);
 }
 
 buildModel();
